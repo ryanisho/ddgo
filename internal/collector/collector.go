@@ -56,5 +56,9 @@ func (sc *SystemCollector) collect() {
 }
 
 func (sc *SystemCollector) collectMetrics() {
-	// sc.collectCPUMetrics()
+	sc.collectCPUMetrics()
+	sc.collectMemoryMetrics()
+	sc.collectDiskMetrics()
+	sc.collectNetworkMetrics()
+	sc.collectProcessMetrics()
 }
