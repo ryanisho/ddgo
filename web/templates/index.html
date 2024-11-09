@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WatchDog - System Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chart-container { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .chart-container.full { grid-column: 1 / -1; }
+        body { background: #f5f5f5; margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Metrics</h1>
+        <div class="charts-grid">
+            <div class="chart-container full">
+                <canvas id="cpuCoresChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="systemChart"></canvas>
+            </div>
+        </div>
+        <!-- Debug div to see raw data -->
+        <div id="debug" style="margin-top: 20px; font-family: monospace; font-size: 12px;"></div>
+    </div>
+
+    <script>
+        // Create CPU cores chart
+        const cpuCoresCtx = document.getElementById('cpuCoresChart').getContext('2d');
+        const cpuCoresChart = new Chart(cpuCoresCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'CPU Core Usage %',
+                    data: [],
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgb(255, 99, 132)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Usage %'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'CPU Cores Usage'
+                    }
+                }
+            }
+        });
+
+        // Create system metrics chart
+        const systemCtx = document.getElementById('systemChart').getContext('2d');
+        const systemChart = new Chart(systemCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Total CPU %',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.2
+                    },
+                    {
+                        label: 'Memory %',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.2
+                    },
+                    {
+                        label: 'Disk %',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Usage %'
+                        }
+                    }
+                }
+            }
+        });
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+
+        function updateCharts() {
+            fetch('/api/metrics')
+                .then(response => response.json())
+                .then(data => {
+                    // Debug: Show raw data
+                    document.getElementById('debug').textContent = JSON.stringify(data, null, 2);
+
+                    const formattedTime = formatTime(data.time);
+
+                    // Update CPU cores chart
+                    if (data.cpu_cores) {
+                        const coreLabels = data.cpu_cores.map(core => `Core ${core.core}`);
+                        const coreData = data.cpu_cores.map(core => parseFloat(core.usage));
+                        
+                        cpuCoresChart.data.labels = coreLabels;
+                        cpuCoresChart.data.datasets[0].data = coreData;
+                        cpuCoresChart.update();
+                    }
+
+                    // Update system metrics chart
+                    systemChart.data.labels.push(formattedTime);
+                    
+                    // Convert strings to numbers and handle missing data
+                    const cpuTotal = parseFloat(data.cpu_total) || 0;
+                    const memory = parseFloat(data.memory) || 0;
+                    const disk = parseFloat(data.disk) || 0;
+
+                    systemChart.data.datasets[0].data.push(cpuTotal);
+                    systemChart.data.datasets[1].data.push(memory);
+                    systemChart.data.datasets[2].data.push(disk);
+
+                    // Keep only last 30 points
+                    if (systemChart.data.labels.length > 30) {
+                        systemChart.data.labels.shift();
+                        systemChart.data.datasets.forEach(dataset => dataset.data.shift());
+                    }
+
+                    systemChart.update();
+                })
+                .catch(error => {
+                    console.error('Error fetching metrics:', error);
+                    document.getElementById('debug').textContent = 'Error: ' + error.message;
+                });
+        }
+
+        // Update every 2 seconds
+        setInterval(updateCharts, 2000);
+        updateCharts(); // Initial update
+    </script>
+</body>
+</html>
