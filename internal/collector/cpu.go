@@ -1,16 +1,17 @@
 package collector
 
 import (
-	"github.com/shirou/gopsutil/cpu" // cpu package
-	"time"
 	"fmt"
+	"time"
+
+	"github.com/shirou/gopsutil/cpu" // cpu package
 )
 
-type CPUCollector struct {}
+type CPUCollector struct{}
 
-func NewCPUCollector() *CPUCollector {
-	return &CPUCollector{}
-}
+// func NewCPUCollector() *CPUCollector {
+// 	return &CPUCollector{}
+// }
 
 func (c *CPUCollector) Collect() ([]Metric, error) {
 	percentages, err := cpu.Percent(time.Second, true)
@@ -23,14 +24,13 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 	now := time.Now()
 
 	for i, usage := range percentages {
-		metrics[i] = Metric {
-			Name: "cpu_usage",
-			Value: usage,
+		metrics[i] = Metric{
+			Name:      "cpu_usage",
+			Value:     usage,
 			Timestamp: now,
-			Labels: map[string]string{"cpu": fmt.Sprintf("cpu%d", i)},
+			Labels:    map[string]string{"cpu": fmt.Sprintf("cpu%d", i)},
 		}
 	}
 
 	return metrics, nil
 }
-
