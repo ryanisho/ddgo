@@ -33,7 +33,7 @@ func getMetrics() Metrics {
 	cores := make([]CoreMetric, len(perCPU))
 	for i, usage := range perCPU {
 		cores[i] = CoreMetric{
-			Core:  i,
+			Core:  i + 1,
 			Usage: usage,
 		}
 	}
