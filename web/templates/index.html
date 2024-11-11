@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WatchDog - System Monitor</title>
+    <title>DDGo - System Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -136,11 +136,11 @@
                     
                     // Convert strings to numbers and handle missing data
                     const cpuTotal = parseFloat(data.cpu_total) || 0;
-                    const memory = parseFloat(data.memory) || 0;
+                    // const memory = parseFloat(data.memory) || 0;
                     const disk = parseFloat(data.disk) || 0;
 
                     systemChart.data.datasets[0].data.push(cpuTotal);
-                    systemChart.data.datasets[1].data.push(memory);
+                    // systemChart.data.datasets[1].data.push(memory);
                     systemChart.data.datasets[2].data.push(disk);
 
                     // Keep only last 30 points
