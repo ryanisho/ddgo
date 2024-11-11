@@ -9,9 +9,9 @@ import (
 
 type CPUCollector struct{}
 
-// func NewCPUCollector() *CPUCollector {
-// 	return &CPUCollector{}
-// }
+func NewCPUCollector() *CPUCollector {
+	return &CPUCollector{}
+}
 
 func (c *CPUCollector) Collect() ([]Metric, error) {
 	percentages, err := cpu.Percent(time.Second, true)

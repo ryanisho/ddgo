@@ -2,13 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/mem"
+	"ddgo/internal/collector"
 )
 
 type CoreMetric struct {
@@ -25,32 +24,69 @@ type Metrics struct {
 }
 
 func getMetrics() Metrics {
-	// Get per-core CPU usage
-	perCPU, _ := cpu.Percent(time.Second, true)
-	totalCPU, _ := cpu.Percent(time.Second, false)
+	cpuCollector := collector.NewCPUCollector()
+	memCollector := collector.NewMemoryCollector()
+	diskCollector := collector.NewDiskCollector()
 
-	// Convert to CoreMetric slice
-	cores := make([]CoreMetric, len(perCPU))
-	for i, usage := range perCPU {
-		cores[i] = CoreMetric{
-			Core:  i,
-			Usage: usage,
+	cpuMetrics, err := cpuCollector.Collect()
+	if err != nil {
+		log.Printf("Error collecting CPU metrics: %v", err)
+	}
+
+	memMetrics, err := memCollector.Collect()
+	if err != nil {
+		log.Printf("Error collecting memory metrics: %v", err)
+	}
+
+	diskMetrics, err := diskCollector.Collect()
+	if err != nil {
+		log.Printf("Error collecting disk metrics: %v", err)
+	}
+
+	var cpuCores []CoreMetric
+	var cpuTotal float64
+
+	for _, metric := range cpuMetrics {
+		if metric.Name == "cpu_usage" {
+			if core, ok := metric.Labels["cpu"]; ok {
+				if core != "total" {
+					coreNum := 0
+					fmt.Sscanf(core, "cpu%d", &coreNum)
+					cpuCores = append(cpuCores, CoreMetric{
+						Core:  coreNum,
+						Usage: metric.Value,
+					})
+				} else {
+					cpuTotal = metric.Value
+				}
+			}
 		}
 	}
 
-	// Get memory usage
-	memory, _ := mem.VirtualMemory()
+	var memoryUsage float64
+	for _, metric := range memMetrics {
+		if metric.Name == "memory_usage" && metric.Labels["type"] == "virtual" {
+			memoryUsage = metric.Value
+		}
+	}
 
-	// Get disk usage
-	disk, _ := disk.Usage("/")
+	var diskUsage float64
+	for _, metric := range diskMetrics {
+		if metric.Name == "disk_usage" {
+			diskUsage = metric.Value
+			break
+		}
+	}
 
-	return Metrics{
-		CPUCores: cores,
-		CPUTotal: totalCPU[0],
-		Memory:   memory.UsedPercent,
-		Disk:     disk.UsedPercent,
+	metrics := Metrics{
+		CPUCores: cpuCores,
+		CPUTotal: cpuTotal,
+		Memory:   memoryUsage,
+		Disk:     diskUsage,
 		Time:     time.Now().Format(time.RFC3339),
 	}
+
+	return metrics
 }
 
 func main() {
@@ -65,7 +101,6 @@ func main() {
 		json.NewEncoder(w).Encode(metrics)
 	})
 
-	// Serve index page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/templates/index.html")
 	})
