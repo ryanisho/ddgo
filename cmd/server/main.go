@@ -8,6 +8,7 @@ import (
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type CoreMetric struct {
@@ -38,7 +39,7 @@ func getMetrics() Metrics {
 	}
 
 	// Get memory usage
-	// memory, _ := mem.VirtualMemory()
+	memory, _ := mem.VirtualMemory()
 
 	// Get disk usage
 	disk, _ := disk.Usage("/")
@@ -46,9 +47,9 @@ func getMetrics() Metrics {
 	return Metrics{
 		CPUCores: cores,
 		CPUTotal: totalCPU[0],
-		// Memory:   memory.UsedPercent,
-		Disk: disk.UsedPercent,
-		Time: time.Now().Format(time.RFC3339),
+		Memory:   memory.UsedPercent,
+		Disk:     disk.UsedPercent,
+		Time:     time.Now().Format(time.RFC3339),
 	}
 }
 
