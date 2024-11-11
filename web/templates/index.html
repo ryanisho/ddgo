@@ -1,165 +1,453 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>DDGo - System Monitor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .chart-container { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .chart-container.full { grid-column: 1 / -1; }
-        body { background: #f5f5f5; margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-        h1 { color: #333; }
+        :root {
+            --primary-bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --accent-color: #4299e1;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --danger-color: #f56565;
+            --chart-blue: rgba(66, 153, 225, 0.8);
+            --chart-green: rgba(72, 187, 120, 0.8);
+            --chart-orange: rgba(237, 137, 54, 0.8);
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: var(--text-primary);
+        }
+
+        .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: baseline;
+        }
+
+        .stat-value .unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .chart-header {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .chart-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin: 5px 0 0 0;
+        }
+
+        .spinner {
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--accent-color);
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fff5f5;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            height: 300px; /* Fixed height for charts */
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>System Metrics</h1>
-        <div class="charts-grid">
-            <div class="chart-container full">
-                <canvas id="cpuCoresChart"></canvas>
+        <div class="header">
+            <h1>System Monitor</h1>
+            <div class="timestamp" id="lastUpdate">Initializing...</div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>System Load (1m)</h3>
+                <div class="stat-value">
+                    <span id="load1">--</span>
+                </div>
             </div>
-            <div class="chart-container">
-                <canvas id="systemChart"></canvas>
+            <div class="stat-card">
+                <h3>System Load (5m)</h3>
+                <div class="stat-value">
+                    <span id="load5">--</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>System Load (15m)</h3>
+                <div class="stat-value">
+                    <span id="load15">--</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>CPU Frequency</h3>
+                <div class="stat-value">
+                    <span id="cpuFreq">--</span>
+                    <span class="unit">MHz</span>
+                </div>
             </div>
         </div>
-        <!-- Debug div to see raw data -->
-        <div id="debug" style="margin-top: 20px; font-family: monospace; font-size: 12px;"></div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2 class="chart-title">System Load Average</h2>
+                    <p class="chart-subtitle">1-minute, 5-minute, and 15-minute averages</p>
+                </div>
+                <canvas id="loadChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2 class="chart-title">CPU Frequency</h2>
+                    <p class="chart-subtitle">Processor clock speed over time</p>
+                </div>
+                <canvas id="freqChart"></canvas>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Create CPU cores chart
-        const cpuCoresCtx = document.getElementById('cpuCoresChart').getContext('2d');
-        const cpuCoresChart = new Chart(cpuCoresCtx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'CPU Core Usage %',
-                    data: [],
-                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                    borderColor: 'rgb(255, 99, 132)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                animation: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'Usage %'
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'CPU Cores Usage'
-                    }
-                }
-            }
-        });
+        let loadChart, freqChart;
+        const maxDataPoints = 30;
+        let systemData = {
+            labels: [],
+            load1: [],
+            load5: [],
+            load15: [],
+            freq: []
+        };
 
-        // Create system metrics chart
-        const systemCtx = document.getElementById('systemChart').getContext('2d');
-        const systemChart = new Chart(systemCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'Total CPU %',
-                        data: [],
-                        borderColor: 'rgb(255, 99, 132)',
-                        tension: 0.2
-                    },
-                    {
-                        label: 'Memory %',
-                        data: [],
-                        borderColor: 'rgb(54, 162, 235)',
-                        tension: 0.2
-                    },
-                    {
-                        label: 'Disk %',
-                        data: [],
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                animation: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'Usage %'
-                        }
-                    }
-                }
-            }
-        });
+       
 
-        function formatTime(isoString) {
-            const date = new Date(isoString);
-            return date.toLocaleTimeString();
-        }
+        // Change this part in the updateCharts function:
+        function updateCharts(metrics) {
+    // Extract values from metrics
+    const load1 = metrics.find(m => m.name === 'system_load1')?.value || 0;
+    const load5 = metrics.find(m => m.name === 'system_load5')?.value || 0;
+    const load15 = metrics.find(m => m.name === 'system_load15')?.value || 0;
+    const cpuFreq = metrics.find(m => m.name === 'cpu_frequency')?.value || 0;
 
-        function updateCharts() {
+    // Update dashboard cards
+    document.getElementById('load1').textContent = load1.toFixed(2);
+    document.getElementById('load5').textContent = load5.toFixed(2);
+    document.getElementById('load15').textContent = load15.toFixed(2);
+    document.getElementById('cpuFreq').textContent = Math.round(cpuFreq);
+
+    const timeString = new Date(metrics[0]?.timestamp).toLocaleTimeString();
+    document.getElementById('lastUpdate').textContent = `Last updated: ${timeString}`;
+
+    // Maintain fixed array size
+    if (systemData.labels.length >= maxDataPoints) {
+        systemData.labels = systemData.labels.slice(-maxDataPoints);
+        systemData.load1 = systemData.load1.slice(-maxDataPoints);
+        systemData.load5 = systemData.load5.slice(-maxDataPoints);
+        systemData.load15 = systemData.load15.slice(-maxDataPoints);
+        systemData.freq = systemData.freq.slice(-maxDataPoints);
+    }
+
+    // Add new data points
+    systemData.labels.push(timeString);
+    systemData.load1.push(load1);
+    systemData.load5.push(load5);
+    systemData.load15.push(load15);
+    systemData.freq.push(cpuFreq);
+
+    // Dynamically adjust load chart scale if needed
+    const maxLoad = Math.max(...systemData.load1, ...systemData.load5, ...systemData.load15);
+    if (maxLoad > loadChart.options.scales.y.max) {
+        loadChart.options.scales.y.max = Math.ceil(maxLoad * 1.2); // Add 20% headroom
+    }
+
+    // Update charts
+    loadChart.data.labels = systemData.labels;
+    loadChart.data.datasets[0].data = systemData.load1;
+    loadChart.data.datasets[1].data = systemData.load5;
+    loadChart.data.datasets[2].data = systemData.load15;
+    loadChart.update('none');
+
+    freqChart.data.labels = systemData.labels;
+    freqChart.data.datasets[0].data = systemData.freq;
+    freqChart.update('none');
+}
+
+        let errorCount = 0;
+        const maxErrors = 3;
+
+        function updateDashboard() {
             fetch('/api/metrics')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    // Debug: Show raw data
-                    document.getElementById('debug').textContent = JSON.stringify(data, null, 2);
-
-                    const formattedTime = formatTime(data.time);
-
-                    // Update CPU cores chart
-                    if (data.cpu_cores) {
-                        const coreLabels = data.cpu_cores.map(core => `Core ${core.core}`);
-                        const coreData = data.cpu_cores.map(core => parseFloat(core.usage));
-                        
-                        cpuCoresChart.data.labels = coreLabels;
-                        cpuCoresChart.data.datasets[0].data = coreData;
-                        cpuCoresChart.update();
-                    }
-
-                    // Update system metrics chart
-                    systemChart.data.labels.push(formattedTime);
-                    
-                    // Convert strings to numbers and handle missing data
-                    const cpuTotal = parseFloat(data.cpu_total) || 0;
-                    const memory = parseFloat(data.memory) || 0;
-                    const disk = parseFloat(data.disk) || 0;
-
-                    systemChart.data.datasets[0].data.push(cpuTotal);
-                    systemChart.data.datasets[1].data.push(memory);
-                    systemChart.data.datasets[2].data.push(disk);
-
-                    // Keep only last 30 points
-                    if (systemChart.data.labels.length > 30) {
-                        systemChart.data.labels.shift();
-                        systemChart.data.datasets.forEach(dataset => dataset.data.shift());
-                    }
-
-                    systemChart.update();
+                    errorCount = 0; // Reset error count on successful fetch
+                    updateCharts(data);
                 })
                 .catch(error => {
                     console.error('Error fetching metrics:', error);
-                    document.getElementById('debug').textContent = 'Error: ' + error.message;
+                    errorCount++;
+                    if (errorCount >= maxErrors) {
+                        document.getElementById('lastUpdate').textContent = 
+                            `Error: Unable to fetch metrics (${error.message})`;
+                    }
                 });
         }
+        function initializeCharts() {
+            // System Load Chart
+            const loadCtx = document.getElementById('loadChart').getContext('2d');
+            loadChart = new Chart(loadCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: '1 min',
+                            data: [],
+                            borderColor: 'rgb(66, 153, 225)',
+                            backgroundColor: 'rgba(66, 153, 225, 0.1)',
+                            tension: 0.2,
+                            fill: true
+                        },
+                        {
+                            label: '5 min',
+                            data: [],
+                            borderColor: 'rgb(72, 187, 120)',
+                            backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                            tension: 0.2,
+                            fill: true
+                        },
+                        {
+                            label: '15 min',
+                            data: [],
+                            borderColor: 'rgb(237, 137, 54)',
+                            backgroundColor: 'rgba(237, 137, 54, 0.1)',
+                            tension: 0.2,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,  // Set minimum value
+                            max: 10, // Set a reasonable maximum
+                            title: {
+                                display: true,
+                                text: 'Load'
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 10 // Limit number of x-axis labels
+                            }
+                        }
+                    }
+                }
+            });
 
-        // Update every 2 seconds
-        setInterval(updateCharts, 2000);
-        updateCharts(); // Initial update
+            // CPU Frequency Chart
+            const freqCtx = document.getElementById('freqChart').getContext('2d');
+            freqChart = new Chart(freqCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Frequency',
+                        data: [],
+                        borderColor: 'rgb(66, 153, 225)',
+                        backgroundColor: 'rgba(66, 153, 225, 0.1)',
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,  // Set minimum value
+                            max: 5000, // Set maximum based on your CPU's max frequency
+                            title: {
+                                display: true,
+                                text: 'MHz'
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 10 // Limit number of x-axis labels
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize and start updates
+        initializeCharts();
+        updateDashboard(); // Initial update
+        setInterval(updateDashboard, 2000);
+
+        // Handle visibility change to prevent background updates
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearInterval(updateInterval);
+            } else {
+                updateDashboard();
+                updateInterval = setInterval(updateDashboard, 2000);
+            }
+        });
     </script>
 </body>
 </html>
