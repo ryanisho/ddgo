@@ -10,42 +10,71 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
-type CPUCollector struct{}
-
-func CreateCPUCollector() *CPUCollector {
-	return &CPUCollector{}
+type CPUCollector struct {
+	history     []Metric
+	historySize int
 }
 
-func getSystemStats() (uint64, uint64, error) {
-	_, _, _, err := host.PlatformInformation()
-	if err != nil {
-		return 0, 0, err
+func CreateCPUCollector(historySize int) *CPUCollector {
+	return &CPUCollector{
+		history:     make([]Metric, 0, historySize),
+		historySize: historySize,
 	}
-
-	// Get context switches and interrupts from CPU stats
-	cpuStats, err := cpu.Times(false) // false for total stats
-	if err != nil {
-		return 0, 0, err
-	}
-
-	// Note: The actual values might need adjustment based on your OS
-	// These are approximations based on CPU statistics
-	contextSwitches := uint64(cpuStats[0].Irq + cpuStats[0].Softirq)
-	interrupts := uint64(cpuStats[0].Irq)
-
-	return contextSwitches, interrupts, nil
 }
 
 func (c *CPUCollector) Collect() ([]Metric, error) {
 	metrics := []Metric{}
 	now := time.Now()
 
-	// 1. CPU Usage
+	// cpu usage
+	usageMetrics, err := c.collectCPUUsage(now)
+	if err != nil {
+		return nil, err
+	}
+	metrics = append(metrics, usageMetrics...)
+
+	// load avgs
+	loadMetrics, err := c.collectLoadAverages(now)
+	if err != nil {
+		return nil, err
+	}
+	metrics = append(metrics, loadMetrics...)
+
+	// cpu counts
+	countMetrics, err := c.collectCPUCounts(now)
+	if err != nil {
+		return nil, err
+	}
+	metrics = append(metrics, countMetrics...)
+
+	// cpu times
+	timeMetrics, err := c.collectCPUTimes(now)
+	if err != nil {
+		return nil, err
+	}
+	metrics = append(metrics, timeMetrics...)
+
+	// system stats
+	systemMetrics, err := c.collectSystemStats(now)
+	if err != nil {
+		return nil, err
+	}
+	metrics = append(metrics, systemMetrics...)
+
+	// store metrics in history
+	// TODO: trend analysis
+	c.storeInHistory(metrics)
+
+	return metrics, nil
+}
+
+func (c *CPUCollector) collectCPUUsage(now time.Time) ([]Metric, error) {
 	percentages, err := cpu.Percent(time.Second, true)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting CPU usage: %v", err)
 	}
 
+	metrics := []Metric{}
 	for i, usage := range percentages {
 		metrics = append(metrics, Metric{
 			Name:      "cpu_usage",
@@ -55,84 +84,84 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 		})
 	}
 
-	// 2. CPU Load Average
+	return metrics, nil
+}
+
+func (c *CPUCollector) collectLoadAverages(now time.Time) ([]Metric, error) {
 	loadAvg, err := load.Avg()
 	if err != nil {
 		return nil, fmt.Errorf("error collecting load average: %v", err)
 	}
 
-	metrics = append(metrics, Metric{
-		Name:      "cpu_load_average_1m",
-		Value:     loadAvg.Load1,
-		Timestamp: now,
-		Labels:    map[string]string{"interval": "1m"},
-	})
+	metrics := []Metric{
+		{
+			Name:      "cpu_load_average_1m",
+			Value:     loadAvg.Load1,
+			Timestamp: now,
+			Labels:    map[string]string{"interval": "1m"},
+		},
+		{
+			Name:      "cpu_load_average_5m",
+			Value:     loadAvg.Load5,
+			Timestamp: now,
+			Labels:    map[string]string{"interval": "5m"},
+		},
+		{
+			Name:      "cpu_load_average_15m",
+			Value:     loadAvg.Load15,
+			Timestamp: now,
+			Labels:    map[string]string{"interval": "15m"},
+		},
+	}
 
-	metrics = append(metrics, Metric{
-		Name:      "cpu_load_average_5m",
-		Value:     loadAvg.Load5,
-		Timestamp: now,
-		Labels:    map[string]string{"interval": "5m"},
-	})
+	return metrics, nil
+}
 
-	metrics = append(metrics, Metric{
-		Name:      "cpu_load_average_15m",
-		Value:     loadAvg.Load15,
-		Timestamp: now,
-		Labels:    map[string]string{"interval": "15m"},
-	})
-
-	// log.Printf("Metrics: %v", metrics)
-
-	// 3. CPU Frequency and Info
-	cpuInfo, err := cpu.Info()
+func (c *CPUCollector) collectCPUCounts(now time.Time) ([]Metric, error) {
+	counts, err := cpu.Counts(true)
 	if err != nil {
-		return nil, fmt.Errorf("error collecting CPU frequency: %v", err)
+		return nil, fmt.Errorf("error collecting CPU counts: %v", err)
 	}
 
-	for i, info := range cpuInfo {
-		metrics = append(metrics, Metric{
-			Name:      "cpu_frequency_current",
-			Value:     float64(info.Mhz),
-			Timestamp: now,
-			Labels: map[string]string{
-				"cpu":    fmt.Sprintf("cpu%d", i),
-				"model":  info.ModelName,
-				"vendor": info.VendorID,
-			},
-		})
-
-		metrics = append(metrics, Metric{
-			Name:      "cpu_cores",
-			Value:     float64(info.Cores),
-			Timestamp: now,
-			Labels: map[string]string{
-				"cpu":    fmt.Sprintf("cpu%d", i),
-				"model":  info.ModelName,
-				"vendor": info.VendorID,
-			},
-		})
-
-		if info.CacheSize > 0 {
-			metrics = append(metrics, Metric{
-				Name:      "cpu_cache_size_mb",
-				Value:     float64(info.CacheSize) / 1024.0,
-				Timestamp: now,
-				Labels: map[string]string{
-					"cpu":    fmt.Sprintf("cpu%d", i),
-					"model":  info.ModelName,
-					"vendor": info.VendorID,
-				},
-			})
-		}
+	physicalCounts, err := cpu.Counts(false)
+	if err != nil {
+		return nil, fmt.Errorf("error collecting physical CPU counts: %v", err)
 	}
 
-	// 4. CPU States (Time spent in different modes)
-	times, err := cpu.Times(true) // true for per-CPU stats
+	metrics := []Metric{
+		{
+			Name:      "cpu_cores_logical",
+			Value:     float64(counts),
+			Timestamp: now,
+			Labels:    map[string]string{},
+		},
+		{
+			Name:      "cpu_cores_physical",
+			Value:     float64(physicalCounts),
+			Timestamp: now,
+			Labels:    map[string]string{},
+		},
+	}
+
+	if physicalCounts > 0 {
+		metrics = append(metrics, Metric{
+			Name:      "cpu_hyperthread_ratio",
+			Value:     float64(counts) / float64(physicalCounts),
+			Timestamp: now,
+			Labels:    map[string]string{},
+		})
+	}
+
+	return metrics, nil
+}
+
+func (c *CPUCollector) collectCPUTimes(now time.Time) ([]Metric, error) {
+	times, err := cpu.Times(true)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting CPU times: %v", err)
 	}
 
+	metrics := []Metric{}
 	for i, cpuTime := range times {
 		cpuLabels := map[string]string{"cpu": fmt.Sprintf("cpu%d", i)}
 
@@ -172,27 +201,49 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 		})
 	}
 
-	// 5. Context Switches and Interrupts
+	return metrics, nil
+}
+
+func getSystemStats() (uint64, uint64, error) {
+	_, _, _, err := host.PlatformInformation()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	cpuStats, err := cpu.Times(false)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Note: The actual values might need adjustment based on your OS
+	// These are approximations based on CPU statistics
+	contextSwitches := uint64(cpuStats[0].Irq + cpuStats[0].Softirq)
+	interrupts := uint64(cpuStats[0].Irq)
+
+	return contextSwitches, interrupts, nil
+}
+
+func (c *CPUCollector) collectSystemStats(now time.Time) ([]Metric, error) {
 	contextSwitches, interrupts, err := getSystemStats()
 	if err != nil {
 		return nil, fmt.Errorf("error collecting context switches: %v", err)
 	}
 
-	metrics = append(metrics, Metric{
-		Name:      "cpu_context_switches_total",
-		Value:     float64(contextSwitches),
-		Timestamp: now,
-		Labels:    map[string]string{},
-	})
+	metrics := []Metric{
+		{
+			Name:      "cpu_context_switches_total",
+			Value:     float64(contextSwitches),
+			Timestamp: now,
+			Labels:    map[string]string{},
+		},
+		{
+			Name:      "cpu_interrupts_total",
+			Value:     float64(interrupts),
+			Timestamp: now,
+			Labels:    map[string]string{},
+		},
+	}
 
-	metrics = append(metrics, Metric{
-		Name:      "cpu_interrupts_total",
-		Value:     float64(interrupts),
-		Timestamp: now,
-		Labels:    map[string]string{},
-	})
-
-	// System boot time
 	bootTime, err := host.BootTime()
 	if err != nil {
 		return nil, fmt.Errorf("error collecting boot time: %v", err)
@@ -205,13 +256,11 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 		Labels:    map[string]string{},
 	})
 
-	// 6. Process and Thread Statistics
 	processes, err := process.Processes()
 	if err != nil {
 		return nil, fmt.Errorf("error collecting process stats: %v", err)
 	}
 
-	// Process count
 	metrics = append(metrics, Metric{
 		Name:      "system_processes_total",
 		Value:     float64(len(processes)),
@@ -219,7 +268,6 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 		Labels:    map[string]string{},
 	})
 
-	// Thread count and process states
 	var (
 		totalThreads int32
 		running      int
@@ -229,12 +277,10 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 	)
 
 	for _, p := range processes {
-		// Count threads
 		if numThreads, err := p.NumThreads(); err == nil {
 			totalThreads += numThreads
 		}
 
-		// Count process states
 		if status, err := p.Status(); err == nil {
 			switch status[0] {
 			case 'R':
@@ -256,7 +302,6 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 		Labels:    map[string]string{},
 	})
 
-	// Process states
 	metrics = append(metrics, Metric{
 		Name:      "system_processes_state",
 		Value:     float64(running),
@@ -286,4 +331,11 @@ func (c *CPUCollector) Collect() ([]Metric, error) {
 	})
 
 	return metrics, nil
+}
+
+func (c *CPUCollector) storeInHistory(metrics []Metric) {
+	c.history = append(c.history, metrics...)
+	if len(c.history) > c.historySize {
+		c.history = c.history[len(c.history)-c.historySize:]
+	}
 }

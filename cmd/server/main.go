@@ -24,11 +24,14 @@ type Metrics struct {
 }
 
 func getMetrics() Metrics {
-	cpuCollector := collector.CreateCPUCollector()
+	cpuCollector := collector.CreateCPUCollector(0)
 	memCollector := collector.CreateMemoryCollector()
 	diskCollector := collector.CreateDiskCollector()
 
 	cpuMetrics, err := cpuCollector.Collect()
+
+	log.Printf("===========: %v", cpuMetrics)
+
 	if err != nil {
 		log.Printf("Error collecting CPU metrics: %v", err)
 	}
