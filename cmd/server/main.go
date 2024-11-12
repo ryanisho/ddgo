@@ -248,20 +248,11 @@ func main() {
 	// Create router
 	mux := http.NewServeMux()
 
-	// Serve static files
-	fs := http.FileServer(http.Dir("web/static"))
-	mux.Handle("/static/", http.StripPrefix("/static/", fs))
-
 	// API endpoint
 	mux.HandleFunc("/api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		metrics := collectMetrics()
 		json.NewEncoder(w).Encode(metrics)
-	})
-
-	// Serve the frontend
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "web/templates/index.html")
 	})
 
 	// Create server with CORS middleware
