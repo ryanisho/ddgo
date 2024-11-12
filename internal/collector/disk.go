@@ -14,7 +14,7 @@ type DiskCollector struct {
 	lastCheck      time.Time
 }
 
-func NewDiskCollector() *DiskCollector {
+func CreateDiskCollector() *DiskCollector {
 	return &DiskCollector{
 		lastIOCounters: make(map[string]disk.IOCountersStat),
 		lastCheck:      time.Now(),

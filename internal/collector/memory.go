@@ -9,7 +9,7 @@ import (
 
 type MemoryCollector struct{}
 
-func NewMemoryCollector() *MemoryCollector {
+func CreateMemoryCollector() *MemoryCollector {
 	return &MemoryCollector{}
 }
 

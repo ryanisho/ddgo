@@ -24,9 +24,9 @@ type Metrics struct {
 }
 
 func getMetrics() Metrics {
-	cpuCollector := collector.NewCPUCollector()
-	memCollector := collector.NewMemoryCollector()
-	diskCollector := collector.NewDiskCollector()
+	cpuCollector := collector.CreateCPUCollector()
+	memCollector := collector.CreateMemoryCollector()
+	diskCollector := collector.CreateDiskCollector()
 
 	cpuMetrics, err := cpuCollector.Collect()
 	if err != nil {
