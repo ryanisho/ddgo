@@ -1,165 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>DDGo - System Monitor</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Monitor Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .chart-container { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .chart-container.full { grid-column: 1 / -1; }
-        body { background: #f5f5f5; margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-        h1 { color: #333; }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .metric-card {
+            transition: all 0.3s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>System Metrics</h1>
-        <div class="charts-grid">
-            <div class="chart-container full">
-                <canvas id="cpuCoresChart"></canvas>
-            </div>
-            <div class="chart-container">
-                <canvas id="systemChart"></canvas>
-            </div>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">System Monitor Dashboard</h1>
+            <div id="lastUpdated" class="text-sm text-gray-500"></div>
         </div>
-        <!-- Debug div to see raw data -->
-        <div id="debug" style="margin-top: 20px; font-family: monospace; font-size: 12px;"></div>
+        <div id="metricsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
 
     <script>
-        // Create CPU cores chart
-        const cpuCoresCtx = document.getElementById('cpuCoresChart').getContext('2d');
-        const cpuCoresChart = new Chart(cpuCoresCtx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'CPU Core Usage %',
-                    data: [],
-                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                    borderColor: 'rgb(255, 99, 132)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                animation: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'Usage %'
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'CPU Cores Usage'
-                    }
-                }
-            }
-        });
-
-        // Create system metrics chart
-        const systemCtx = document.getElementById('systemChart').getContext('2d');
-        const systemChart = new Chart(systemCtx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: 'Total CPU %',
-                        data: [],
-                        borderColor: 'rgb(255, 99, 132)',
-                        tension: 0.2
-                    },
-                    {
-                        label: 'Memory %',
-                        data: [],
-                        borderColor: 'rgb(54, 162, 235)',
-                        tension: 0.2
-                    },
-                    {
-                        label: 'Disk %',
-                        data: [],
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                animation: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'Usage %'
-                        }
-                    }
-                }
-            }
-        });
-
-        function formatTime(isoString) {
-            const date = new Date(isoString);
-            return date.toLocaleTimeString();
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
 
-        function updateCharts() {
-            fetch('/api/metrics')
-                .then(response => response.json())
-                .then(data => {
-                    // Debug: Show raw data
-                    document.getElementById('debug').textContent = JSON.stringify(data, null, 2);
-
-                    const formattedTime = formatTime(data.time);
-
-                    // Update CPU cores chart
-                    if (data.cpu_cores) {
-                        const coreLabels = data.cpu_cores.map(core => `Core ${core.core}`);
-                        const coreData = data.cpu_cores.map(core => parseFloat(core.usage));
-                        
-                        cpuCoresChart.data.labels = coreLabels;
-                        cpuCoresChart.data.datasets[0].data = coreData;
-                        cpuCoresChart.update();
-                    }
-
-                    // Update system metrics chart
-                    systemChart.data.labels.push(formattedTime);
-                    
-                    // Convert strings to numbers and handle missing data
-                    const cpuTotal = parseFloat(data.cpu_total) || 0;
-                    const memory = parseFloat(data.memory) || 0;
-                    const disk = parseFloat(data.disk) || 0;
-
-                    systemChart.data.datasets[0].data.push(cpuTotal);
-                    systemChart.data.datasets[1].data.push(memory);
-                    systemChart.data.datasets[2].data.push(disk);
-
-                    // Keep only last 30 points
-                    if (systemChart.data.labels.length > 30) {
-                        systemChart.data.labels.shift();
-                        systemChart.data.datasets.forEach(dataset => dataset.data.shift());
-                    }
-
-                    systemChart.update();
-                })
-                .catch(error => {
-                    console.error('Error fetching metrics:', error);
-                    document.getElementById('debug').textContent = 'Error: ' + error.message;
-                });
+        function createMetricCard(title, content, className = '') {
+            const card = document.createElement('div');
+            card.className = `bg-white rounded-lg shadow-sm p-6 metric-card ${className}`;
+            card.innerHTML = `<h2 class="text-xl font-semibold mb-4 text-gray-800">${title}</h2>${content}`;
+            return card;
         }
 
-        // Update every 2 seconds
-        setInterval(updateCharts, 2000);
-        updateCharts(); // Initial update
+        function createProgressBar(value, max = 100, color = "blue") {
+            const percentage = (value / max) * 100;
+            const progressBar = document.createElement('div');
+            progressBar.className = 'w-full bg-gray-200 rounded-full h-2';
+            progressBar.innerHTML = `<div class="bg-${color}-600 rounded-full h-2" style="width: ${percentage}%"></div>`;
+            return progressBar;
+        }
+
+        async function fetchMetrics() {
+            try {
+                const response = await fetch('http://localhost:8080/api/metrics');
+                const data = await response.json();
+                updateMetrics(data);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function updateMetrics(metrics) {
+            document.getElementById("lastUpdated").textContent = `Last updated: ${new Date(metrics.time).toLocaleTimeString()}`;
+
+            const metricsGrid = document.getElementById('metricsGrid');
+            metricsGrid.innerHTML = '';
+
+            // CPU Usage Card
+            const cpuContent = metrics.cpu.cores.map(core => `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-600">Core ${core.core}</span>
+                        <span class="font-medium">${core.usage.toFixed(1)}%</span>
+                    </div>
+                    ${createProgressBar(core.usage, 100, core.usage > 80 ? "red" : core.usage > 60 ? "yellow" : "blue").outerHTML}
+                </div>
+            `).join('');
+            metricsGrid.appendChild(createMetricCard("CPU Usage", cpuContent, "col-span-1 lg:col-span-2"));
+
+            // Memory Usage Card
+            const memoryContent = `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-600">RAM Usage</span>
+                        <span class="font-medium">${metrics.memory.virtual.usage.toFixed(1)}%</span>
+                    </div>
+                    ${createProgressBar(metrics.memory.virtual.usage, 100, metrics.memory.virtual.usage > 80 ? "red" : "blue").outerHTML}
+                    <div class="mt-2 grid grid-cols-2 gap-4 text-sm">
+                        <div><span class="text-gray-500">Used</span><div class="font-medium">${formatBytes(metrics.memory.virtual.used)}</div></div>
+                        <div><span class="text-gray-500">Total</span><div class="font-medium">${formatBytes(metrics.memory.virtual.total)}</div></div>
+                        <div><span class="text-gray-500">Free</span><div class="font-medium">${formatBytes(metrics.memory.virtual.free)}</div></div>
+                        <div><span class="text-gray-500">Usage</span><div class="font-medium">${formatBytes(metrics.memory.virtual.usage)}</div></div>
+                        <div><span class="text-gray-500">Cached</span><div class="font-medium">${formatBytes(metrics.memory.virtual.cached)}</div></div>
+                        <div><span class="text-gray-500">Avaliable</span><div class="font-medium">${formatBytes(metrics.memory.virtual.available)}</div></div>
+                        <div><span class="text-gray-500">Swap Total</span><div class="font-medium">${formatBytes(metrics.memory.swap.total)}</div></div>
+                        <div><span class="text-gray-500">Swap Used</span><div class="font-medium">${formatBytes(metrics.memory.swap.used)}</div></div>
+                        <div><span class="text-gray-500">Swap Free</span><div class="font-medium">${formatBytes(metrics.memory.swap.free)}</div></div>
+                        <div><span class="text-gray-500">Swap Usage</span><div class="font-medium">${formatBytes(metrics.memory.swap.usage)}</div></div>
+
+                    </div>
+                </div>
+                ${metrics.memory.swap.total > 0 ? `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-600">Swap Usage</span>
+                        <span class="font-medium">${metrics.memory.swap.usage.toFixed(1)}%</span>
+                    </div>
+                    ${createProgressBar(metrics.memory.swap.usage, 100, metrics.memory.swap.usage > 50 ? "yellow" : "green").outerHTML}
+                </div>` : ''}
+            `;
+            metricsGrid.appendChild(createMetricCard("Memory Usage", memoryContent));
+
+            // Disk Usage Card
+            const diskContent = `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-600">Usage</span>
+                        <span class="font-medium">${metrics.disk.usage.toFixed(1)}%</span>
+                    </div>
+                    ${createProgressBar(metrics.disk.usage, 100, metrics.disk.usage > 85 ? "red" : "green").outerHTML}
+                    <div class="mt-2 grid grid-cols-2 gap-4 text-sm">
+                        <div><span class="text-gray-500">Total Space</span><div class="font-medium">${formatBytes(metrics.disk.total)}</div></div>
+                        <div><span class="text-gray-500">Free Space</span><div class="font-medium">${formatBytes(metrics.disk.free)}</div></div>
+                        <div><span class="text-gray-500">Read Count</span><div class="font-medium">${formatBytes(metrics.disk.io.read_count)}</div></div>
+                        <div><span class="text-gray-500">Write Count</span><div class="font-medium">${formatBytes(metrics.disk.io.write_count)}</div></div>
+                        <div><span class="text-gray-500">Read Bytes</span><div class="font-medium">${formatBytes(metrics.disk.io.read_bytes)}</div></div>
+                        <div><span class="text-gray-500">Write Bytes</span><div class="font-medium">${formatBytes(metrics.disk.io.write_bytes)}</div></div>
+
+                    </div>
+                </div>
+            `;
+            metricsGrid.appendChild(createMetricCard("Disk Usage", diskContent));
+
+            // System Info Card
+            const systemInfoContent = `
+                <div class="flex justify-between"><span class="text-gray-600">Physical Cores</span><span class="font-medium">${metrics.cpu.info.physical_cores}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Logical Cores</span><span class="font-medium">${metrics.cpu.info.logical_cores}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Total Processes</span><span class="font-medium">${metrics.cpu.info.process_count}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Total Threads</span><span class="font-medium">${metrics.cpu.info.thread_count}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">CPU Load (1 minute)</span><span class="font-medium">${metrics.cpu.load['1m']}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">CPU Load (5 minute)</span><span class="font-medium">${metrics.cpu.load['5m']}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">CPU Load (15 minute)</span><span class="font-medium">${metrics.cpu.load['15m']}</span></div>
+
+            `;
+            metricsGrid.appendChild(createMetricCard("System Information", systemInfoContent));
+
+            // Load Averages Card
+            const loadAveragesContent = `
+                <div class="flex justify-between items-center"><span class="text-gray-600">1 minute</span><span class="font-medium">${metrics.cpu.load.oneMin.toFixed(2)}</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">5 minutes</span><span class="font-medium">${metrics.cpu.load.fiveMin.toFixed(2)}</span></div>
+                <div class="flex justify-between items-center"><span class="text-gray-600">15 minutes</span><span class="font-medium">${metrics.cpu.load.fifteenMin.toFixed(2)}</span></div>
+            `;
+            metricsGrid.appendChild(createMetricCard("Load Averages", loadAveragesContent));
+        }
+
+        setInterval(fetchMetrics, 2000);
+        fetchMetrics();
     </script>
 </body>
 </html>
