@@ -1,15 +1,12 @@
 package collector
 
-import (
-	"time"
-)
+import "time"
 
-// metric obj.
 type Metric struct {
-	Name string
-	Value float64 
-	Timestamp time.Time
-	Labels map[string] string
+	Name      string            `json:"name"`
+	Value     float64           `json:"value"`
+	Timestamp time.Time         `json:"timestamp"`
+	Labels    map[string]string `json:"labels"`
 }
 
 type Collector interface {
