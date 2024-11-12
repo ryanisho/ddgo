@@ -1,237 +1,169 @@
-// internal/collector/disk.go
 package collector
 
 import (
 	"fmt"
-	"strings"
+	"sync"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/disk"
 )
 
 type DiskCollector struct {
-	lastIOCounters map[string]disk.IOCountersStat
-	lastCheck      time.Time
+	lastStats   map[string]disk.IOCountersStat
+	lastCollect time.Time
+	mutex       sync.Mutex
 }
 
 func CreateDiskCollector() *DiskCollector {
 	return &DiskCollector{
-		lastIOCounters: make(map[string]disk.IOCountersStat),
-		lastCheck:      time.Now(),
+		lastStats: make(map[string]disk.IOCountersStat),
 	}
 }
 
 func (c *DiskCollector) Collect() ([]Metric, error) {
-	var metrics []Metric
+	metrics := []Metric{}
 	now := time.Now()
 
-	// Get all partitions
-	partitions, err := disk.Partitions(false)
+	// Define the main disk mount point
+	mainDiskMountPoint := "/"
+
+	// Get usage statistics for the main disk
+	usage, err := disk.Usage(mainDiskMountPoint)
 	if err != nil {
-		return nil, fmt.Errorf("error getting disk partitions: %v", err)
+		return nil, fmt.Errorf("error getting disk usage for main disk: %v", err)
 	}
 
-	// Collect metrics for each partition
-	for _, partition := range partitions {
-		// Skip special filesystems
-		if shouldSkipFilesystem(partition.Fstype) {
-			continue
-		}
-
-		// Get usage statistics
-		usage, err := disk.Usage(partition.Mountpoint)
-		if err != nil {
-			continue // Skip this partition if we can't get usage
-		}
-
-		// Add disk space metrics
-		metrics = append(metrics,
-			// Usage percentage
-			Metric{
-				Name:      "disk_usage",
-				Value:     usage.UsedPercent,
-				Timestamp: now,
-				Labels: map[string]string{
-					"device":     partition.Device,
-					"mountpoint": partition.Mountpoint,
-					"fstype":     partition.Fstype,
-				},
+	// Add main disk space metrics
+	metrics = append(metrics,
+		// Usage percentage
+		Metric{
+			Name:      "disk_usage",
+			Value:     usage.UsedPercent,
+			Timestamp: now,
+			Labels: map[string]string{
+				"mountpoint": mainDiskMountPoint,
+				"fstype":     usage.Fstype,
 			},
-			// Total space
-			Metric{
-				Name:      "disk_total",
-				Value:     float64(usage.Total),
-				Timestamp: now,
-				Labels: map[string]string{
-					"device":     partition.Device,
-					"mountpoint": partition.Mountpoint,
-					"fstype":     partition.Fstype,
-				},
+		},
+		// Total space
+		Metric{
+			Name:      "disk_total",
+			Value:     float64(usage.Total),
+			Timestamp: now,
+			Labels: map[string]string{
+				"mountpoint": mainDiskMountPoint,
+				"fstype":     usage.Fstype,
 			},
-			// Free space
-			Metric{
-				Name:      "disk_free",
-				Value:     float64(usage.Free),
-				Timestamp: now,
-				Labels: map[string]string{
-					"device":     partition.Device,
-					"mountpoint": partition.Mountpoint,
-					"fstype":     partition.Fstype,
-				},
+		},
+		// Free space
+		Metric{
+			Name:      "disk_free",
+			Value:     float64(usage.Free),
+			Timestamp: now,
+			Labels: map[string]string{
+				"mountpoint": mainDiskMountPoint,
+				"fstype":     usage.Fstype,
 			},
-		)
+		},
+	)
 
-		// Add inode metrics if available (Unix/Linux)
-		if usage.InodesTotal > 0 {
-			metrics = append(metrics,
-				Metric{
-					Name:      "disk_inodes_usage",
-					Value:     usage.InodesUsedPercent,
+	// Get current I/O statistics
+	ioStats, err := disk.IOCounters()
+	if err != nil {
+		fmt.Printf("Warning: error getting IO statistics: %v\n", err)
+	} else {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+
+		timeSinceLastCollect := now.Sub(c.lastCollect).Seconds()
+
+		for device, stats := range ioStats {
+			ioLabels := map[string]string{"device": device}
+
+			// Calculate speeds if we have previous stats
+			if lastStat, exists := c.lastStats[device]; exists && timeSinceLastCollect > 0 {
+				// Read speed (bytes per second)
+				readSpeed := float64(stats.ReadBytes-lastStat.ReadBytes) / timeSinceLastCollect
+				metrics = append(metrics, Metric{
+					Name:      "disk_read_speed_bytes_per_second",
+					Value:     readSpeed,
 					Timestamp: now,
-					Labels: map[string]string{
-						"device":     partition.Device,
-						"mountpoint": partition.Mountpoint,
-						"fstype":     partition.Fstype,
-					},
-				},
-			)
-		}
-	}
+					Labels:    ioLabels,
+				})
 
-	// Get IO statistics
-	ioCounters, err := disk.IOCounters()
-	if err == nil { // Don't fail if IO metrics are unavailable
-		timeDiff := now.Sub(c.lastCheck).Seconds()
+				// Write speed (bytes per second)
+				writeSpeed := float64(stats.WriteBytes-lastStat.WriteBytes) / timeSinceLastCollect
+				metrics = append(metrics, Metric{
+					Name:      "disk_write_speed_bytes_per_second",
+					Value:     writeSpeed,
+					Timestamp: now,
+					Labels:    ioLabels,
+				})
 
-		for deviceName, ioStats := range ioCounters {
-			// Calculate rates if we have previous measurements
-			if lastStats, exists := c.lastIOCounters[deviceName]; exists && timeDiff > 0 {
-				// Read rate in bytes per second
-				readRate := float64(ioStats.ReadBytes-lastStats.ReadBytes) / timeDiff
-				// Write rate in bytes per second
-				writeRate := float64(ioStats.WriteBytes-lastStats.WriteBytes) / timeDiff
-				// IO operations per second
-				iopsRead := float64(ioStats.ReadCount-lastStats.ReadCount) / timeDiff
-				iopsWrite := float64(ioStats.WriteCount-lastStats.WriteCount) / timeDiff
+				// IOPS (I/O operations per second)
+				readIOPS := float64(stats.ReadCount-lastStat.ReadCount) / timeSinceLastCollect
+				writeIOPS := float64(stats.WriteCount-lastStat.WriteCount) / timeSinceLastCollect
 
-				metrics = append(metrics,
-					// IO rates
-					Metric{
-						Name:      "disk_read_rate",
-						Value:     readRate,
+				metrics = append(metrics, []Metric{
+					{
+						Name:      "disk_read_iops",
+						Value:     readIOPS,
 						Timestamp: now,
-						Labels: map[string]string{
-							"device": deviceName,
-							"unit":   "bytes/s",
-						},
+						Labels:    ioLabels,
 					},
-					Metric{
-						Name:      "disk_write_rate",
-						Value:     writeRate,
+					{
+						Name:      "disk_write_iops",
+						Value:     writeIOPS,
 						Timestamp: now,
-						Labels: map[string]string{
-							"device": deviceName,
-							"unit":   "bytes/s",
-						},
+						Labels:    ioLabels,
 					},
-					// IOPS
-					Metric{
-						Name:      "disk_iops_read",
-						Value:     iopsRead,
+					{
+						Name:      "disk_total_iops",
+						Value:     readIOPS + writeIOPS,
 						Timestamp: now,
-						Labels: map[string]string{
-							"device": deviceName,
-						},
+						Labels:    ioLabels,
 					},
-					Metric{
-						Name:      "disk_iops_write",
-						Value:     iopsWrite,
-						Timestamp: now,
-						Labels: map[string]string{
-							"device": deviceName,
-						},
-					},
-				)
+				}...)
 			}
+
+			// Basic I/O metrics
+			metrics = append(metrics, []Metric{
+				{
+					Name:      "disk_reads_total",
+					Value:     float64(stats.ReadCount),
+					Timestamp: now,
+					Labels:    ioLabels,
+				},
+				{
+					Name:      "disk_writes_total",
+					Value:     float64(stats.WriteCount),
+					Timestamp: now,
+					Labels:    ioLabels,
+				},
+				{
+					Name:      "disk_read_bytes_total",
+					Value:     float64(stats.ReadBytes),
+					Timestamp: now,
+					Labels:    ioLabels,
+				},
+				{
+					Name:      "disk_write_bytes_total",
+					Value:     float64(stats.WriteBytes),
+					Timestamp: now,
+					Labels:    ioLabels,
+				},
+				{
+					Name:      "disk_io_in_progress",
+					Value:     float64(stats.IopsInProgress),
+					Timestamp: now,
+					Labels:    ioLabels,
+				},
+			}...)
 		}
-		// Store current counters for next collection
-		c.lastIOCounters = ioCounters
+
+		c.lastStats = ioStats
+		c.lastCollect = now
 	}
 
-	c.lastCheck = now
 	return metrics, nil
-}
-
-// shouldSkipFilesystem returns true for special filesystems that should be ignored
-func shouldSkipFilesystem(fstype string) bool {
-	// List of filesystem types to skip
-	skipFs := map[string]bool{
-		"devfs":      true,
-		"tmpfs":      true,
-		"devtmpfs":   true,
-		"squashfs":   true,
-		"iso9660":    true,
-		"overlay":    true,
-		"aufs":       true,
-		"proc":       true,
-		"sysfs":      true,
-		"devpts":     true,
-		"securityfs": true,
-		"cgroup":     true,
-		"cgroup2":    true,
-		"pstore":     true,
-		"debugfs":    true,
-		"hugetlbfs":  true,
-		"mqueue":     true,
-		"fusectl":    true,
-	}
-
-	return skipFs[strings.ToLower(fstype)]
-}
-
-// GetDiskAlerts returns warnings about disk usage
-func (c *DiskCollector) GetDiskAlerts() []string {
-	var alerts []string
-
-	partitions, err := disk.Partitions(false)
-	if err != nil {
-		return alerts
-	}
-
-	for _, partition := range partitions {
-		if shouldSkipFilesystem(partition.Fstype) {
-			continue
-		}
-
-		usage, err := disk.Usage(partition.Mountpoint)
-		if err != nil {
-			continue
-		}
-
-		// Alert on high disk usage
-		if usage.UsedPercent > 90 {
-			alerts = append(alerts, fmt.Sprintf(
-				"Critical: High disk usage on %s: %.1f%% used",
-				partition.Mountpoint,
-				usage.UsedPercent,
-			))
-		} else if usage.UsedPercent > 80 {
-			alerts = append(alerts, fmt.Sprintf(
-				"Warning: Disk usage on %s: %.1f%% used",
-				partition.Mountpoint,
-				usage.UsedPercent,
-			))
-		}
-
-		// Alert on inode usage (Unix/Linux)
-		if usage.InodesTotal > 0 && usage.InodesUsedPercent > 90 {
-			alerts = append(alerts, fmt.Sprintf(
-				"Warning: High inode usage on %s: %.1f%% used",
-				partition.Mountpoint,
-				usage.InodesUsedPercent,
-			))
-		}
-	}
-
-	return alerts
 }

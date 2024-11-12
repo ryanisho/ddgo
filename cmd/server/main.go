@@ -30,18 +30,22 @@ func getMetrics() Metrics {
 
 	cpuMetrics, err := cpuCollector.Collect()
 
-	log.Printf("===========: %v", cpuMetrics)
+	// log.Printf("===========: %v", cpuMetrics)
 
 	if err != nil {
 		log.Printf("Error collecting CPU metrics: %v", err)
 	}
 
 	memMetrics, err := memCollector.Collect()
+
+	// log.Printf("===========: %v", memMetrics)
 	if err != nil {
 		log.Printf("Error collecting memory metrics: %v", err)
 	}
 
 	diskMetrics, err := diskCollector.Collect()
+	log.Printf("===========: %v", diskMetrics)
+
 	if err != nil {
 		log.Printf("Error collecting disk metrics: %v", err)
 	}
