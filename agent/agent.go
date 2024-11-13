@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// metrics collection agent
 type Agent struct {
 	ID              string
 	Hostname        string
@@ -23,6 +24,7 @@ type Agent struct {
 	DiskCollector   *collector.DiskCollector
 }
 
+// system metrics collected by agent
 type AgentMetrics struct {
 	AgentID  string `json:"agent_id"`
 	Hostname string `json:"hostname"`
@@ -83,6 +85,7 @@ type AgentMetrics struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// create a new agent instance for server
 func NewAgent(serverURL string) (*Agent, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -99,6 +102,7 @@ func NewAgent(serverURL string) (*Agent, error) {
 	}, nil
 }
 
+// collect all metrics and send to server
 func (a *Agent) CollectAndSend() error {
 	metrics := AgentMetrics{
 		AgentID:   a.ID,
@@ -259,6 +263,7 @@ func (a *Agent) CollectAndSend() error {
 	return nil
 }
 
+// start the agent and send metrics to server
 func (a *Agent) Start() error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
