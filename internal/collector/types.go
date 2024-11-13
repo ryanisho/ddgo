@@ -8,7 +8,3 @@ type Metric struct {
 	Timestamp time.Time         `json:"timestamp"`
 	Labels    map[string]string `json:"labels"`
 }
-
-type Collector interface {
-	Collect() ([]Metric, error)
-}
