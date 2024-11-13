@@ -1,0 +1,57 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Go modules
+vendor/
+go.sum
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+
+# Logs
+*.log
+
+# Dependency directories
+node_modules/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build directories
+bin/
+build/
+dist/
+
+# Coverage reports
+coverage/
+*.cov
+*.coverage
+*.coverprofile
+*.cover.out
+
+# Temporary files
+*.tmp
+*.temp
+*.tmp.*
+*.temp.*
+
+# Go build cache
+*.cache
