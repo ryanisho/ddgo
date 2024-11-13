@@ -2,6 +2,9 @@ package collector
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/cpu"
@@ -161,9 +164,17 @@ func (c *CPUCollector) collectCPUTimes(now time.Time) ([]Metric, error) {
 		return nil, fmt.Errorf("error collecting CPU times: %v", err)
 	}
 
+	// Sort times by extracting the numeric core index from the CPU field
+	sort.Slice(times, func(i, j int) bool {
+		// Remove "cpu" prefix and parse as integers
+		cpuIndexI, _ := strconv.Atoi(strings.TrimPrefix(times[i].CPU, "cpu"))
+		cpuIndexJ, _ := strconv.Atoi(strings.TrimPrefix(times[j].CPU, "cpu"))
+		return cpuIndexI < cpuIndexJ
+	})
+
 	metrics := []Metric{}
-	for i, cpuTime := range times {
-		cpuLabels := map[string]string{"cpu": fmt.Sprintf("cpu%d", i)}
+	for _, cpuTime := range times {
+		cpuLabels := map[string]string{"cpu": cpuTime.CPU}
 
 		metrics = append(metrics, Metric{
 			Name:      "cpu_time_user",
