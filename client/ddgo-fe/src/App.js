@@ -121,16 +121,23 @@ function App() {
                     <div className="col-span-12">
                         <MetricCard title="CPU Times">
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                {Object.entries(metrics.cpu.times).map(([cpu, times]) => (
-                                    <div key={cpu} className="bg-gray-50 p-3 rounded-lg">
-                                        <h4 className="font-medium mb-2">CPU {cpu.replace('cpu', '')}</h4>
-                                        <DetailRow label="User" value={times.user.toFixed(2)} unit="s" />
-                                        <DetailRow label="System" value={times.system.toFixed(2)} unit="s" />
-                                        <DetailRow label="Idle" value={times.idle.toFixed(2)} unit="s" />
-                                        <DetailRow label="I/O Wait" value={times.iowait.toFixed(2)} unit="s" />
-                                        <DetailRow label="IRQ" value={times.irq.toFixed(2)} unit="s" />
-                                    </div>
-                                ))}
+                                {Object.entries(metrics.cpu.times)
+                                    // Sort CPUs by numeric index extracted from the "cpu" key
+                                    .sort(([a], [b]) => {
+                                        const numA = parseInt(a.replace('cpu', ''));
+                                        const numB = parseInt(b.replace('cpu', ''));
+                                        return numA - numB;
+                                    })
+                                    .map(([cpu, times]) => (
+                                        <div key={cpu} className="bg-gray-50 p-3 rounded-lg">
+                                            <h4 className="font-medium mb-2">CPU {cpu.replace('cpu', '')}</h4>
+                                            <DetailRow label="User" value={times.user.toFixed(2)} unit="s" />
+                                            <DetailRow label="System" value={times.system.toFixed(2)} unit="s" />
+                                            <DetailRow label="Idle" value={times.idle.toFixed(2)} unit="s" />
+                                            <DetailRow label="I/O Wait" value={times.iowait.toFixed(2)} unit="s" />
+                                            <DetailRow label="IRQ" value={times.irq.toFixed(2)} unit="s" />
+                                        </div>
+                                    ))}
                             </div>
                         </MetricCard>
                     </div>
