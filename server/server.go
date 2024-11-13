@@ -1,4 +1,3 @@
-// server/server.go
 package server
 
 import (
@@ -10,15 +9,13 @@ import (
 	"time"
 )
 
-// MetricsServer handles collecting metrics from agents
+// metrics struct for agents
 type MetricsServer struct {
-	// Store metrics from all agents
 	agents map[string]AgentMetrics
 	mu     sync.RWMutex
-	// Optional: add configuration fields here
 }
 
-// AgentMetrics matches the agent's metrics structure
+// agent metrics = local metrics
 type AgentMetrics struct {
 	AgentID  string `json:"agent_id"`
 	Hostname string `json:"hostname"`
@@ -79,14 +76,15 @@ type AgentMetrics struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func NewMetricsServer() *MetricsServer {
+// start server instance
+func StartServer() *MetricsServer {
 	return &MetricsServer{
 		agents: make(map[string]AgentMetrics),
 	}
 }
 
-// HandleMetricsCollection handles incoming metrics from agents
-func (s *MetricsServer) HandleMetricsCollection(w http.ResponseWriter, r *http.Request) {
+// collects metrics from agents
+func (s *MetricsServer) CollectAgents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -105,8 +103,8 @@ func (s *MetricsServer) HandleMetricsCollection(w http.ResponseWriter, r *http.R
 	log.Printf("Received metrics from agent %s (%s)", metrics.AgentID, metrics.Hostname)
 }
 
-// HandleGetMetrics returns metrics for all agents
-func (s *MetricsServer) HandleGetMetrics(w http.ResponseWriter, r *http.Request) {
+// returns metrics for all agents
+func (s *MetricsServer) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -123,8 +121,8 @@ func (s *MetricsServer) HandleGetMetrics(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(response)
 }
 
-// CleanupOldMetrics removes metrics from inactive agents
-func (s *MetricsServer) CleanupOldMetrics() {
+// remove inactive agents
+func (s *MetricsServer) Clean() {
 	ticker := time.NewTicker(1 * time.Minute)
 	for range ticker.C {
 		threshold := time.Now().Add(-5 * time.Minute)

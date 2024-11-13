@@ -24,18 +24,14 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 	metrics := []Metric{}
 	now := time.Now()
 
-	// Define the main disk mount point
 	mainDiskMountPoint := "/"
 
-	// Get usage statistics for the main disk
 	usage, err := disk.Usage(mainDiskMountPoint)
 	if err != nil {
 		return nil, fmt.Errorf("error getting disk usage for main disk: %v", err)
 	}
 
-	// Add main disk space metrics
 	metrics = append(metrics,
-		// Usage percentage
 		Metric{
 			Name:      "disk_usage",
 			Value:     usage.UsedPercent,
@@ -45,7 +41,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 				"fstype":     usage.Fstype,
 			},
 		},
-		// Total space
 		Metric{
 			Name:      "disk_total",
 			Value:     float64(usage.Total),
@@ -55,7 +50,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 				"fstype":     usage.Fstype,
 			},
 		},
-		// Free space
 		Metric{
 			Name:      "disk_free",
 			Value:     float64(usage.Free),
@@ -67,7 +61,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 		},
 	)
 
-	// Get current I/O statistics
 	ioStats, err := disk.IOCounters()
 	if err != nil {
 		fmt.Printf("Warning: error getting IO statistics: %v\n", err)
@@ -80,9 +73,7 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 		for device, stats := range ioStats {
 			ioLabels := map[string]string{"device": device}
 
-			// Calculate speeds if we have previous stats
 			if lastStat, exists := c.lastStats[device]; exists && timeSinceLastCollect > 0 {
-				// Read speed (bytes per second)
 				readSpeed := float64(stats.ReadBytes-lastStat.ReadBytes) / timeSinceLastCollect
 				metrics = append(metrics, Metric{
 					Name:      "disk_read_speed_bytes_per_second",
@@ -91,7 +82,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 					Labels:    ioLabels,
 				})
 
-				// Write speed (bytes per second)
 				writeSpeed := float64(stats.WriteBytes-lastStat.WriteBytes) / timeSinceLastCollect
 				metrics = append(metrics, Metric{
 					Name:      "disk_write_speed_bytes_per_second",
@@ -100,7 +90,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 					Labels:    ioLabels,
 				})
 
-				// IOPS (I/O operations per second)
 				readIOPS := float64(stats.ReadCount-lastStat.ReadCount) / timeSinceLastCollect
 				writeIOPS := float64(stats.WriteCount-lastStat.WriteCount) / timeSinceLastCollect
 
@@ -126,7 +115,6 @@ func (c *DiskCollector) Collect() ([]Metric, error) {
 				}...)
 			}
 
-			// Basic I/O metrics
 			metrics = append(metrics, []Metric{
 				{
 					Name:      "disk_reads_total",
