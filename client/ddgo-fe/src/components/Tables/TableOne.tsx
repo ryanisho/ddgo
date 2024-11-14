@@ -1,118 +1,83 @@
-import { BRAND } from "@/types/brand";
-import Image from "next/image";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
-const brandData: BRAND[] = [
-  {
-    logo: "/images/brand/brand-01.svg",
-    name: "Google",
-    visitors: 3.5,
-    revenues: "5,768",
-    sales: 590,
-    conversion: 4.8,
-  },
-  {
-    logo: "/images/brand/brand-02.svg",
-    name: "Twitter",
-    visitors: 2.2,
-    revenues: "4,635",
-    sales: 467,
-    conversion: 4.3,
-  },
-  {
-    logo: "/images/brand/brand-03.svg",
-    name: "Github",
-    visitors: 2.1,
-    revenues: "4,290",
-    sales: 420,
-    conversion: 3.7,
-  },
-  {
-    logo: "/images/brand/brand-04.svg",
-    name: "Vimeo",
-    visitors: 1.5,
-    revenues: "3,580",
-    sales: 389,
-    conversion: 2.5,
-  },
-  {
-    logo: "/images/brand/brand-05.svg",
-    name: "Facebook",
-    visitors: 3.5,
-    revenues: "6,768",
-    sales: 390,
-    conversion: 4.2,
-  },
-];
+interface CoreTime {
+  core: string;
+  user: number;
+  system: number;
+  idle: number;
+  iowait: number;
+  irq: number;
+}
 
 const TableOne = () => {
+  const [cpuTimes, setCpuTimes] = useState<CoreTime[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get("http://localhost:8080/api/metrics"); // Adjust the API endpoint as needed
+        const responseData = response.data;
+        const key = Object.keys(responseData)[0];
+        const data = responseData[key]?.metrics?.cpu?.times;
+
+        if (!data) {
+          throw new Error("Invalid data structure");
+        }
+
+        // Format and sort the data by core number
+        const formattedData: CoreTime[] = Object.keys(data)
+          .map((coreKey) => {
+            const coreNumber = parseInt(coreKey.replace("cpu", ""), 10) + 1; // Convert "cpu0" to "Core 1", etc.
+            return {
+              core: `Core ${coreNumber}`,
+              user: data[coreKey].user,
+              system: data[coreKey].system,
+              idle: data[coreKey].idle,
+              iowait: data[coreKey].iowait,
+              irq: data[coreKey].irq,
+            };
+          })
+          .sort((a, b) => parseInt(a.core.replace("Core ", "")) - parseInt(b.core.replace("Core ", ""))); // Sort by core number
+
+        setCpuTimes(formattedData);
+      } catch (error) {
+        console.error("Error fetching CPU data:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   return (
-    <div className="rounded-sm border border-stroke bg-white px-5 pb-2.5 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
-      <h4 className="mb-6 text-xl font-semibold text-black dark:text-white">
-        Top Channels
+    <div className="rounded-sm border border-stroke bg-white px-4 pb-2 pt-4 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-6 xl:pb-1">
+      <h4 className="mb-4 text-lg font-semibold text-black dark:text-white">
+        CPU Core Times
       </h4>
 
       <div className="flex flex-col">
-        <div className="grid grid-cols-3 rounded-sm bg-gray-2 dark:bg-meta-4 sm:grid-cols-5">
-          <div className="p-2.5 xl:p-5">
-            <h5 className="text-sm font-medium uppercase xsm:text-base">
-              Source
-            </h5>
-          </div>
-          <div className="p-2.5 text-center xl:p-5">
-            <h5 className="text-sm font-medium uppercase xsm:text-base">
-              Visitors
-            </h5>
-          </div>
-          <div className="p-2.5 text-center xl:p-5">
-            <h5 className="text-sm font-medium uppercase xsm:text-base">
-              Revenues
-            </h5>
-          </div>
-          <div className="hidden p-2.5 text-center sm:block xl:p-5">
-            <h5 className="text-sm font-medium uppercase xsm:text-base">
-              Sales
-            </h5>
-          </div>
-          <div className="hidden p-2.5 text-center sm:block xl:p-5">
-            <h5 className="text-sm font-medium uppercase xsm:text-base">
-              Conversion
-            </h5>
-          </div>
+        <div className="grid grid-cols-5 bg-gray-100 dark:bg-meta-4 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <div className="p-2 text-center">Core</div>
+          <div className="p-2 text-center">User (s)</div>
+          <div className="p-2 text-center">System (s)</div>
+          <div className="p-2 text-center">Idle (s)</div>
+          <div className="p-2 text-center">IRQ + IOWait</div>
         </div>
 
-        {brandData.map((brand, key) => (
+        {cpuTimes.map((core, index) => (
           <div
-            className={`grid grid-cols-3 sm:grid-cols-5 ${
-              key === brandData.length - 1
+            className={`grid grid-cols-5 items-center text-xs ${
+              index === cpuTimes.length - 1
                 ? ""
-                : "border-b border-stroke dark:border-strokedark"
+                : "border-b border-gray-200 dark:border-strokedark"
             }`}
-            key={key}
+            key={index}
           >
-            <div className="flex items-center gap-3 p-2.5 xl:p-5">
-              <div className="flex-shrink-0">
-                <Image src={brand.logo} alt="Brand" width={48} height={48} />
-              </div>
-              <p className="hidden text-black dark:text-white sm:block">
-                {brand.name}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center p-2.5 xl:p-5">
-              <p className="text-black dark:text-white">{brand.visitors}K</p>
-            </div>
-
-            <div className="flex items-center justify-center p-2.5 xl:p-5">
-              <p className="text-meta-3">${brand.revenues}</p>
-            </div>
-
-            <div className="hidden items-center justify-center p-2.5 sm:flex xl:p-5">
-              <p className="text-black dark:text-white">{brand.sales}</p>
-            </div>
-
-            <div className="hidden items-center justify-center p-2.5 sm:flex xl:p-5">
-              <p className="text-meta-5">{brand.conversion}%</p>
-            </div>
+            <div className="p-2 text-center text-gray-800 dark:text-gray-100">{core.core}</div>
+            <div className="p-2 text-center text-gray-800 dark:text-gray-100">{core.user.toFixed(2)}</div>
+            <div className="p-2 text-center text-gray-800 dark:text-gray-100">{core.system.toFixed(2)}</div>
+            <div className="p-2 text-center text-gray-800 dark:text-gray-100">{core.idle.toFixed(2)}</div>
+            <div className="p-2 text-center text-gray-800 dark:text-gray-100">{(core.irq + core.iowait).toFixed(2)}</div>
           </div>
         ))}
       </div>

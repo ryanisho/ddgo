@@ -32,10 +32,6 @@ const ECommerce: React.FC = () => {
         </div>
 
         <div className="col-span-12">
-          <MapOne />
-        </div>
-
-        <div className="col-span-12">
           <TableOne />
         </div>
 
